@@ -1,0 +1,6 @@
+@_4x4MasterEngine.API_HostAddress = http://localhost:5234
+
+GET {{_4x4MasterEngine.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
