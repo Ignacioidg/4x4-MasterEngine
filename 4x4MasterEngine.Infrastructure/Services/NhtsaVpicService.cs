@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using _4x4MasterEngine.Application.Interfaces;
@@ -8,6 +9,9 @@ public class NhtsaVpicService : IVehicleCatalogService
 {
     private readonly HttpClient _httpClient;
     private const string BaseUrl = "https://vpic.nhtsa.dot.gov/api/";
+
+    private static readonly ConcurrentDictionary<string, List<VehicleModelDto>> _modelsCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, List<string>> _trimsCache = new(StringComparer.OrdinalIgnoreCase);
 
     // Curated 4x4 / Off-road / Truck / SUV makes with their standard NHTSA IDs
     private static readonly List<VehicleMakeDto> CuratedMakes = new()
@@ -54,6 +58,12 @@ public class NhtsaVpicService : IVehicleCatalogService
 
     public async Task<List<VehicleModelDto>> GetModelsAsync(int year, string make)
     {
+        string cacheKey = $"{year}:{make.Trim()}";
+        if (_modelsCache.TryGetValue(cacheKey, out var cachedModels))
+        {
+            return cachedModels;
+        }
+
         try
         {
             string endpoint = $"vehicles/GetModelsForMakeYear/make/{Uri.EscapeDataString(make)}/modelyear/{year}?format=json";
@@ -64,7 +74,7 @@ public class NhtsaVpicService : IVehicleCatalogService
                 return new List<VehicleModelDto>();
             }
 
-            return response.Results
+            var models = response.Results
                 .Where(r => !string.IsNullOrWhiteSpace(r.ModelName))
                 .Select(r => new VehicleModelDto
                 {
@@ -76,6 +86,13 @@ public class NhtsaVpicService : IVehicleCatalogService
                 .Select(g => g.First())
                 .OrderBy(m => m.ModelName)
                 .ToList();
+
+            if (models.Count > 0)
+            {
+                _modelsCache[cacheKey] = models;
+            }
+
+            return models;
         }
         catch (Exception ex)
         {
@@ -83,8 +100,15 @@ public class NhtsaVpicService : IVehicleCatalogService
             return new List<VehicleModelDto>();
         }
     }
+
     public async Task<List<string>> GetTrimsAsync(int year, string make, string model)
     {
+        string cacheKey = $"{year}:{make.Trim()}:{model.Trim()}";
+        if (_trimsCache.TryGetValue(cacheKey, out var cachedTrims))
+        {
+            return cachedTrims;
+        }
+
         var defaultFallbackTrims = new List<string>
         {
             "Base / Standard",
@@ -112,6 +136,7 @@ public class NhtsaVpicService : IVehicleCatalogService
 
                 if (trimsFound.Count > 0)
                 {
+                    _trimsCache[cacheKey] = trimsFound;
                     return trimsFound;
                 }
             }
@@ -121,6 +146,7 @@ public class NhtsaVpicService : IVehicleCatalogService
             Console.WriteLine($"[NHTSA Specs Error] Failed fetching trims for {make} {model} ({year}): {ex.Message}");
         }
 
+        _trimsCache[cacheKey] = defaultFallbackTrims;
         return defaultFallbackTrims;
     }
 

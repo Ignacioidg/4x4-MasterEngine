@@ -10,8 +10,10 @@ import {
   Pencil,
   Car,
   Layers,
-  Search,
   X,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
 import { useVehicle } from '../../context/VehicleContext';
 import { VehiculoBuild } from '../../types';
@@ -26,6 +28,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     activeVehicle,
     selectVehicle,
     accessoriesCatalog,
+    compatibilityRules,
     savedBuilds,
     equipAccessory,
     unequipAccessory,
@@ -42,17 +45,16 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
   const [equipping, setEquipping] = useState<boolean>(false);
   const [savingBuild, setSavingBuild] = useState<boolean>(false);
   const [loadingBuildId, setLoadingBuildId] = useState<number | null>(null);
+  const [confirmDeleteBuildId, setConfirmDeleteBuildId] = useState<number | null>(null);
 
   // All builds filter state
   const [showAllBuilds, setShowAllBuilds] = useState<boolean>(false);
   const [allBuildsList, setAllBuildsList] = useState<VehiculoBuild[]>([]);
-  const [loadingAllBuilds, setLoadingAllBuilds] = useState<boolean>(false);
 
-  // Rename modal/inline state
+  // Rename inline state
   const [editingBuildId, setEditingBuildId] = useState<number | null>(null);
   const [editingBuildName, setEditingBuildName] = useState<string>('');
 
-  // When showAllBuilds is enabled, load all builds
   useEffect(() => {
     if (showAllBuilds) {
       loadAll();
@@ -60,18 +62,14 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
   }, [showAllBuilds]);
 
   const loadAll = async () => {
-    setLoadingAllBuilds(true);
     try {
       const data = await fetchAllBuilds();
       setAllBuildsList(data);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoadingAllBuilds(false);
     }
   };
 
-  // If no vehicles registered in the whole system
   if (vehicles.length === 0) {
     return (
       <div className="glass-panel" style={{ textAlign: 'center', padding: '3.5rem 2rem' }}>
@@ -84,7 +82,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     );
   }
 
-  // Handle Equip Accessory
   const handleEquip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAccessoryId || !activeVehicle) return;
@@ -93,7 +90,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     try {
       await equipAccessory(parseInt(selectedAccessoryId));
       setSelectedAccessoryId('');
-      onShowToast('Accesorio equipado y validado por reglas de compatibilidad', 'success');
+      onShowToast('Accesorio equipado y validado por el motor de reglas mecánicas', 'success');
     } catch (err: any) {
       onShowToast(err.message || 'Error de compatibilidad mecánica', 'error');
     } finally {
@@ -101,7 +98,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     }
   };
 
-  // Handle Unequip
   const handleUnequip = async (accessoryId: number, nombre: string) => {
     try {
       await unequipAccessory(accessoryId);
@@ -111,7 +107,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     }
   };
 
-  // Handle Save Build
   const handleSaveBuild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!buildName.trim() || !activeVehicle) return;
@@ -121,7 +116,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
       await saveBuild(buildName.trim());
       setBuildName('');
       if (showAllBuilds) await loadAll();
-      onShowToast('Build guardada exitosamente', 'success');
+      onShowToast('Build guardada exitosamente en SQL Server', 'success');
     } catch (err: any) {
       onShowToast(err.message || 'Error al guardar build', 'error');
     } finally {
@@ -129,17 +124,13 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     }
   };
 
-  // Handle Load Build
   const handleLoadBuild = async (buildId: number, nombre: string) => {
     if (!activeVehicle) return;
-    if (!window.confirm(`¿Desea cargar la build '${nombre}'? Esto reemplazará los accesorios equipados actualmente.`)) {
-      return;
-    }
 
     setLoadingBuildId(buildId);
     try {
       await loadBuild(buildId);
-      onShowToast(`Build '${nombre}' cargada con éxito`, 'success');
+      onShowToast(`Build '${nombre}' aplicada en ${activeVehicle.Marca} ${activeVehicle.Modelo}`, 'success');
     } catch (err: any) {
       onShowToast(err.message || 'Error al cargar build', 'error');
     } finally {
@@ -147,7 +138,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     }
   };
 
-  // Handle Rename Build
   const handleRenameSubmit = async (buildId: number) => {
     if (!editingBuildName.trim()) return;
 
@@ -161,12 +151,10 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     }
   };
 
-  // Handle Delete Build
-  const handleDeleteBuild = async (buildId: number, nombre: string) => {
-    if (!window.confirm(`¿Está seguro de eliminar la build '${nombre}'?`)) return;
-
+  const handleDeleteBuild = async (buildId: number) => {
     try {
       await deleteBuild(buildId);
+      setConfirmDeleteBuildId(null);
       if (showAllBuilds) await loadAll();
       onShowToast('Build eliminada', 'info');
     } catch (err: any) {
@@ -174,7 +162,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
     }
   };
 
-  // Query in Store helper
   const handleSearchInStore = (accessoryName: string) => {
     const query = activeVehicle
       ? `${accessoryName} ${activeVehicle.Marca} ${activeVehicle.Modelo}`
@@ -183,9 +170,15 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
   };
 
   const equipped = activeVehicle?.AccesoriosEquipados || [];
-
-  // Determine which builds to render
+  const equippedIds = new Set(equipped.map((a) => a.Id));
   const displayedBuilds = showAllBuilds ? allBuildsList : savedBuilds;
+
+  // Evaluate rules for currently selected accessory in dropdown
+  const selectedIdNum = parseInt(selectedAccessoryId) || 0;
+  const selectedAccObj = accessoriesCatalog.find((a) => a.Id === selectedIdNum);
+  const relevantRules = compatibilityRules.filter(
+    (r) => r.ComponenteOrigenId === selectedIdNum || r.ComponenteDestinoId === selectedIdNum
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -199,7 +192,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
             </span>
           </div>
 
-          {/* Vehicle selector pills */}
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {vehicles.map((v) => {
               const isSelected = activeVehicle?.Id === v.Id;
@@ -242,7 +234,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
       ) : (
         <>
           {/* Main Workbench Grid: Catalog & Current Setup */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
+          <div className="layout-grid-workbench">
             {/* Column 1: Equipped Accessories & Vehicle Status */}
             <div className="glass-panel">
               <div className="panel-header">
@@ -264,7 +256,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                 </span>
               </div>
 
-              {/* Equipped accessories list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', minHeight: '180px' }}>
                 {equipped.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-secondary)' }}>
@@ -285,9 +276,10 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         gap: '0.75rem',
+                        flexWrap: 'wrap',
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ flex: 1, minWidth: '180px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
                           <span
                             style={{
@@ -301,16 +293,15 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                           >
                             {acc.Categoria}
                           </span>
-                          <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#fff', margin: 0 }}>
                             {acc.Nombre}
                           </h4>
                         </div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
                           {acc.Descripcion}
                         </p>
                       </div>
 
-                      {/* Action buttons per accessory */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
                         <button
                           className="btn-secondary"
@@ -348,7 +339,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
 
             {/* Column 2: Accessory Installation & Build Saver */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              {/* Equip Accessory Card */}
               <div className="glass-panel">
                 <div className="panel-header">
                   <div className="panel-title">
@@ -370,13 +360,73 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                       onChange={(e) => setSelectedAccessoryId(e.target.value)}
                     >
                       <option value="">-- Seleccione una parte --</option>
-                      {accessoriesCatalog.map((acc) => (
-                        <option key={acc.Id} value={acc.Id}>
-                          [{acc.Categoria}] {acc.Nombre}
-                        </option>
-                      ))}
+                      {accessoriesCatalog.map((acc) => {
+                        const alreadyEquipped = equippedIds.has(acc.Id);
+                        return (
+                          <option key={acc.Id} value={acc.Id} disabled={alreadyEquipped}>
+                            [{acc.Categoria}] {acc.Nombre} {alreadyEquipped ? '(Ya instalado)' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
+
+                  {/* Live Datasheet & Compatibility Preview */}
+                  {selectedAccObj && (
+                    <div
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid var(--card-border)',
+                        borderRadius: '10px',
+                        padding: '0.85rem',
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: '#fff', marginBottom: '0.25rem' }}>
+                        📋 Ficha Técnica: {selectedAccObj.Nombre}
+                      </div>
+                      <p style={{ color: 'var(--text-secondary)', marginBottom: '0.6rem', fontSize: '0.78rem' }}>
+                        {selectedAccObj.Descripcion || 'Componente off-road homologado.'}
+                      </p>
+
+                      {relevantRules.length === 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success-color)', fontSize: '0.75rem' }}>
+                          <ShieldCheck size={14} />
+                          <span>Instalación directa (sin restricciones previas)</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          {compatibilityRules
+                            .filter((r) => r.ComponenteOrigenId === selectedIdNum)
+                            .map((r) => {
+                              const isReq = r.Tipo === 'Requisito' || r.Tipo === '0';
+                              const targetEquipped = equippedIds.has(r.ComponenteDestinoId);
+                              const isOk = isReq ? targetEquipped : !targetEquipped;
+
+                              return (
+                                <div
+                                  key={r.Id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    fontSize: '0.75rem',
+                                    color: isOk ? 'var(--success-color)' : 'var(--warning-color)',
+                                  }}
+                                >
+                                  {isOk ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                                  <span>
+                                    {isReq
+                                      ? `Requiere: ${r.ComponenteDestinoNombre} ${targetEquipped ? '(Instalado ✓)' : '(Falta instalar)'}`
+                                      : `Incompatible con: ${r.ComponenteDestinoNombre} ${targetEquipped ? '(Conflicto activo ✗)' : '(Libre ✓)'}`}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <button type="submit" className="btn-primary" disabled={equipping || !selectedAccessoryId} style={{ width: '100%' }}>
                     <Plus size={16} />
@@ -417,7 +467,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
             </div>
           </div>
 
-          {/* Lower Section: Saved Builds Management (CRUD beneath the builder) */}
+          {/* Lower Section: Saved Builds Management */}
           <div className="glass-panel">
             <div className="panel-header">
               <div className="panel-title">
@@ -429,7 +479,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                 </span>
               </div>
 
-              {/* Toggle to show active vs all builds */}
               <button
                 type="button"
                 className="btn-secondary"
@@ -440,8 +489,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
               </button>
             </div>
 
-            {/* Builds Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1rem' }}>
               {displayedBuilds.length === 0 ? (
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
                   <Layers size={32} style={{ opacity: 0.2, marginBottom: '0.5rem' }} />
@@ -454,6 +502,8 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
               ) : (
                 displayedBuilds.map((b) => {
                   const isRenaming = editingBuildId === b.Id;
+                  const isConfirmingDelete = confirmDeleteBuildId === b.Id;
+                  const buildAccs = b.Accesorios || [];
 
                   return (
                     <div
@@ -470,7 +520,6 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                       }}
                     >
                       <div>
-                        {/* Inline rename form */}
                         {isRenaming ? (
                           <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem' }}>
                             <input
@@ -513,7 +562,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                           </div>
                         )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', marginBottom: '0.6rem' }}>
                           <span
                             style={{
                               fontSize: '0.7rem',
@@ -524,7 +573,7 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                               fontWeight: 600,
                             }}
                           >
-                            {b.CantidadAccesorios || b.Accesorios?.length || 0} partes
+                            {b.CantidadAccesorios ?? buildAccs.length} partes
                           </span>
 
                           {b.Vehiculo && (
@@ -533,27 +582,68 @@ export const WorkbenchTab: React.FC<WorkbenchTabProps> = ({ onShowToast }) => {
                             </span>
                           )}
                         </div>
+
+                        {/* Accessory Chips inside Build Card */}
+                        {buildAccs.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                            {buildAccs.map((a) => (
+                              <span
+                                key={a.Id}
+                                style={{
+                                  fontSize: '0.68rem',
+                                  background: 'rgba(255, 255, 255, 0.05)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  color: '#e5e7eb',
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: '4px',
+                                }}
+                              >
+                                {a.Nombre}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Build actions */}
                       <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid var(--card-border)', paddingTop: '0.65rem' }}>
-                        <button
-                          className="btn-primary"
-                          onClick={() => handleLoadBuild(b.Id, b.Nombre)}
-                          disabled={loadingBuildId === b.Id}
-                          style={{ flex: 1, padding: '0.4rem 0.65rem', fontSize: '0.75rem' }}
-                        >
-                          {loadingBuildId === b.Id ? 'Cargando...' : '📥 Cargar en Vehículo'}
-                        </button>
+                        {isConfirmingDelete ? (
+                          <>
+                            <button
+                              className="btn-primary"
+                              onClick={() => handleDeleteBuild(b.Id)}
+                              style={{ flex: 1, padding: '0.35rem 0.5rem', fontSize: '0.75rem', background: 'var(--danger-color)' }}
+                            >
+                              Confirmar Eliminar
+                            </button>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => setConfirmDeleteBuildId(null)}
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                            >
+                              Cancelar
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              className="btn-primary"
+                              onClick={() => handleLoadBuild(b.Id, b.Nombre)}
+                              disabled={loadingBuildId === b.Id}
+                              style={{ flex: 1, padding: '0.4rem 0.65rem', fontSize: '0.75rem' }}
+                            >
+                              {loadingBuildId === b.Id ? 'Cargando...' : '📥 Cargar en Vehículo'}
+                            </button>
 
-                        <button
-                          className="btn-danger-icon"
-                          onClick={() => handleDeleteBuild(b.Id, b.Nombre)}
-                          style={{ padding: '0.4rem 0.5rem' }}
-                          title="Eliminar build"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                            <button
+                              className="btn-danger-icon"
+                              onClick={() => setConfirmDeleteBuildId(b.Id)}
+                              style={{ padding: '0.4rem 0.5rem' }}
+                              title="Eliminar build"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );

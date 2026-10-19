@@ -69,7 +69,7 @@ const MainLayout: React.FC<{ onShowToast: (msg: string, type?: 'error' | 'succes
   }
 
   return (
-    <div style={{ display: 'flex', gap: '1.5rem', maxWidth: '1400px', margin: '1.5rem auto', padding: '0 1.5rem' }}>
+    <div className="app-main-container">
       <Sidebar />
       <main style={{ flex: 1, minWidth: 0 }}>
         <ErrorBoundary>

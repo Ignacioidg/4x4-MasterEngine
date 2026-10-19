@@ -20,14 +20,18 @@ public class AccesoriosController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var accesorios = await _context.Accesorios.ToListAsync();
+        var accesorios = await _context.Accesorios
+            .AsNoTracking()
+            .ToListAsync();
         return Ok(accesorios);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var accesorio = await _context.Accesorios.FindAsync(id);
+        var accesorio = await _context.Accesorios
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == id);
         if (accesorio == null) return NotFound();
         return Ok(accesorio);
     }
@@ -35,12 +39,15 @@ public class AccesoriosController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] AccesorioCreateDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.Nombre))
+            return BadRequest(new { Message = "El nombre del accesorio es obligatorio." });
+
         var accesorio = new Accesorio
         {
-            Nombre = dto.Nombre,
-            Descripcion = dto.Descripcion,
+            Nombre = dto.Nombre.Trim(),
+            Descripcion = dto.Descripcion?.Trim() ?? string.Empty,
             Precio = dto.Precio,
-            Categoria = dto.Categoria
+            Categoria = string.IsNullOrWhiteSpace(dto.Categoria) ? "General" : dto.Categoria.Trim()
         };
 
         _context.Accesorios.Add(accesorio);
@@ -52,6 +59,11 @@ public class AccesoriosController : ControllerBase
     [HttpPost("rules")]
     public async Task<IActionResult> CreateRule([FromBody] ReglaCreateDto dto)
     {
+        if (dto.ComponenteOrigenId == dto.ComponenteDestinoId)
+        {
+            return BadRequest(new { Message = "Un accesorio no puede tener una regla consigo mismo." });
+        }
+
         var origen = await _context.Accesorios.FindAsync(dto.ComponenteOrigenId);
         var destino = await _context.Accesorios.FindAsync(dto.ComponenteDestinoId);
 
@@ -70,13 +82,34 @@ public class AccesoriosController : ControllerBase
         _context.ReglasCompatibilidad.Add(rule);
         await _context.SaveChangesAsync();
 
-        return Ok(rule);
+        return Ok(new
+        {
+            rule.Id,
+            rule.ComponenteOrigenId,
+            ComponenteOrigenNombre = origen.Nombre,
+            rule.ComponenteDestinoId,
+            ComponenteDestinoNombre = destino.Nombre,
+            Tipo = rule.Tipo.ToString()
+        });
+    }
+
+    [HttpDelete("rules/{id}")]
+    public async Task<IActionResult> DeleteRule(int id)
+    {
+        var rule = await _context.ReglasCompatibilidad.FindAsync(id);
+        if (rule == null) return NotFound(new { Message = "Regla no encontrada." });
+
+        _context.ReglasCompatibilidad.Remove(rule);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { Message = "Regla eliminada con éxito." });
     }
 
     [HttpGet("rules")]
     public async Task<IActionResult> GetRules()
     {
         var rules = await _context.ReglasCompatibilidad
+            .AsNoTracking()
             .Include(r => r.ComponenteOrigen)
             .Include(r => r.ComponenteDestino)
             .ToListAsync();

@@ -65,6 +65,62 @@ body {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+/* Responsive Layout Grids */
+.app-main-container {
+  display: flex;
+  gap: 1.5rem;
+  max-width: 1400px;
+  width: 100%;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+}
+
+.layout-grid-dashboard {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 1.5rem;
+}
+
+.layout-grid-workbench {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1.5rem;
+}
+
+.layout-grid-maintenance {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.5rem;
+}
+
+.layout-grid-admin {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .layout-grid-dashboard,
+  .layout-grid-workbench,
+  .layout-grid-maintenance,
+  .layout-grid-admin {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-main-container {
+    flex-direction: column;
+    padding: 0 1rem;
+    margin: 1rem auto;
+  }
+
+  .sidebar-container {
+    width: 100% !important;
+    position: static !important;
+  }
+}
+
 /* Buttons */
 .btn-primary {
   display: inline-flex;

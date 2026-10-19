@@ -25,6 +25,9 @@ public class MaintenanceTrackerService : IMaintenanceTrackerService
         double coefficient = GetSeverityCoefficient(suelo);
         double wearIncreaseKm = kilometros * coefficient;
 
+        // Update vehicle odometer
+        vehiculo.KilometrajeActual += kilometros;
+
         // Update each wear component of the vehicle
         foreach (var component in vehiculo.ComponentesDesgaste)
         {

@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiCall } from '../services/api';
-import { Accesorio, BudgetResponse, Vehiculo, VehiculoBuild } from '../types';
+import { Accesorio, BudgetResponse, ReglaCompatibilidadDto, Vehiculo, VehiculoBuild } from '../types';
 import { useAuth } from './AuthContext';
 
 interface VehicleContextType {
   vehicles: Vehiculo[];
   activeVehicle: Vehiculo | null;
   accessoriesCatalog: Accesorio[];
+  compatibilityRules: ReglaCompatibilidadDto[];
   budget: BudgetResponse | null;
   savedBuilds: VehiculoBuild[];
   isLoading: boolean;
@@ -16,7 +17,8 @@ interface VehicleContextType {
   setStoreSearchQuery: (query: string) => void;
   navigateToStore: (query: string) => void;
   selectVehicle: (id: number) => Promise<void>;
-  refreshVehicles: () => Promise<void>;
+  refreshVehicles: (targetVehicleId?: number) => Promise<void>;
+  refreshCatalog: () => Promise<void>;
   createVehicle: (data: {
     marca: string;
     modelo: string;
@@ -42,6 +44,8 @@ interface VehicleContextType {
   deleteBuild: (buildId: number) => Promise<void>;
   fetchAllBuilds: () => Promise<VehiculoBuild[]>;
   logRoute: (kilometros: number, suelo: number) => Promise<void>;
+  deleteRoute: (trayectoId: number) => Promise<void>;
+  resetComponentWear: (componentId: number) => Promise<void>;
 }
 
 const VehicleContext = createContext<VehicleContextType | undefined>(undefined);
@@ -51,59 +55,59 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [vehicles, setVehicles] = useState<Vehiculo[]>([]);
   const [activeVehicle, setActiveVehicle] = useState<Vehiculo | null>(null);
   const [accessoriesCatalog, setAccessoriesCatalog] = useState<Accesorio[]>([]);
+  const [compatibilityRules, setCompatibilityRules] = useState<ReglaCompatibilidadDto[]>([]);
   const [budget, setBudget] = useState<BudgetResponse | null>(null);
   const [savedBuilds, setSavedBuilds] = useState<VehiculoBuild[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'workbench' | 'maintenance' | 'admin' | 'store'>('dashboard');
   const [storeSearchQuery, setStoreSearchQuery] = useState<string>('');
 
-  const fetchCatalog = async () => {
+  const refreshCatalog = useCallback(async () => {
     try {
-      const data = await apiCall<Accesorio[]>('/accesorios');
-      setAccessoriesCatalog(data);
+      const [accessoriesData, rulesData] = await Promise.all([
+        apiCall<Accesorio[]>('/accesorios'),
+        apiCall<ReglaCompatibilidadDto[]>('/accesorios/rules').catch(() => [] as ReglaCompatibilidadDto[]),
+      ]);
+      setAccessoriesCatalog(Array.isArray(accessoriesData) ? accessoriesData : []);
+      setCompatibilityRules(Array.isArray(rulesData) ? rulesData : []);
     } catch (err) {
       console.error('Error fetching accessories catalog:', err);
     }
-  };
+  }, []);
 
-  const fetchBuilds = async (vehId: number) => {
+  const fetchBuilds = useCallback(async (vehId: number) => {
     try {
       const data = await apiCall<VehiculoBuild[]>(`/vehiculos/${vehId}/builds`);
-      setSavedBuilds(data);
+      setSavedBuilds(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching saved builds:', err);
     }
-  };
-
-  const fetchBudget = async (vehId: number) => {
-    try {
-      const data = await apiCall<BudgetResponse>(`/vehiculos/${vehId}/budget`);
-      setBudget(data);
-    } catch (err) {
-      console.error('Error fetching budget:', err);
-    }
-  };
+  }, []);
 
   const selectVehicle = useCallback(async (id: number) => {
     setIsLoading(true);
     try {
-      const vehicle = await apiCall<Vehiculo>(`/vehiculos/${id}`);
+      const [vehicle] = await Promise.all([
+        apiCall<Vehiculo>(`/vehiculos/${id}`),
+        fetchBuilds(id),
+      ]);
       setActiveVehicle(vehicle);
-      await Promise.all([fetchBudget(id), fetchBuilds(id)]);
     } catch (err) {
       console.error('Error selecting vehicle:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchBuilds]);
 
-  const refreshVehicles = useCallback(async () => {
+  const refreshVehicles = useCallback(async (targetVehicleId?: number) => {
     if (!isAuthenticated) return;
     try {
       const data = await apiCall<Vehiculo[]>('/vehiculos');
       setVehicles(data);
       if (data.length > 0) {
-        if (!activeVehicle || !data.some((v) => v.Id === activeVehicle.Id)) {
+        if (targetVehicleId && data.some((v) => v.Id === targetVehicleId)) {
+          await selectVehicle(targetVehicleId);
+        } else if (!activeVehicle || !data.some((v) => v.Id === activeVehicle.Id)) {
           await selectVehicle(data[0].Id);
         } else {
           await selectVehicle(activeVehicle.Id);
@@ -121,7 +125,7 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (isAuthenticated) {
       refreshVehicles();
-      fetchCatalog();
+      refreshCatalog();
     } else {
       setVehicles([]);
       setActiveVehicle(null);
@@ -139,8 +143,7 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
     kilometrajeInicial: number;
   }) => {
     const vehicle = await apiCall<Vehiculo>('/vehiculos', 'POST', payload);
-    await refreshVehicles();
-    await selectVehicle(vehicle.Id);
+    await refreshVehicles(vehicle.Id);
     return vehicle;
   };
 
@@ -171,13 +174,24 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const logRoute = async (kilometros: number, suelo: number) => {
     if (!activeVehicle) throw new Error('Seleccione un vehículo primero');
     await apiCall(`/maintenance/vehicles/${activeVehicle.Id}/trayecto`, 'POST', { kilometros, suelo });
+    await refreshVehicles(activeVehicle.Id);
+  };
+
+  const deleteRoute = async (trayectoId: number) => {
+    if (!activeVehicle) throw new Error('Seleccione un vehículo primero');
+    await apiCall(`/maintenance/vehicles/${activeVehicle.Id}/trayectos/${trayectoId}`, 'DELETE');
+    await refreshVehicles(activeVehicle.Id);
+  };
+
+  const resetComponentWear = async (componentId: number) => {
+    if (!activeVehicle) throw new Error('Seleccione un vehículo primero');
+    await apiCall(`/maintenance/vehicles/${activeVehicle.Id}/components/${componentId}/reset`, 'POST');
     await selectVehicle(activeVehicle.Id);
   };
 
   const updateVehicle = async (id: number, data: any) => {
     await apiCall(`/vehiculos/${id}`, 'PUT', data);
-    await refreshVehicles();
-    await selectVehicle(id);
+    await refreshVehicles(id);
   };
 
   const deleteVehicle = async (id: number) => {
@@ -216,6 +230,7 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
         vehicles,
         activeVehicle,
         accessoriesCatalog,
+        compatibilityRules,
         budget,
         savedBuilds,
         isLoading,
@@ -226,6 +241,7 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
         navigateToStore,
         selectVehicle,
         refreshVehicles,
+        refreshCatalog,
         createVehicle,
         updateVehicle,
         deleteVehicle,
@@ -237,6 +253,8 @@ export const VehicleProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteBuild,
         fetchAllBuilds,
         logRoute,
+        deleteRoute,
+        resetComponentWear,
       }}
     >
       {children}

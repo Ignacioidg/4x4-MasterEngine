@@ -30,6 +30,7 @@ public class VehiculosController : ControllerBase
     public async Task<IActionResult> GetAll()
     {
         var vehiculos = await _context.Vehiculos
+            .AsNoTracking()
             .Include(v => v.AccesoriosEquipados)
             .ToListAsync();
         return Ok(vehiculos);
@@ -39,6 +40,7 @@ public class VehiculosController : ControllerBase
     public async Task<IActionResult> GetById(int id)
     {
         var vehiculo = await _context.Vehiculos
+            .AsNoTracking()
             .Include(v => v.AccesoriosEquipados)
             .Include(v => v.ComponentesDesgaste)
             .Include(v => v.Trayectos)
@@ -253,6 +255,7 @@ public class VehiculosController : ControllerBase
     public async Task<IActionResult> GetAllBuilds()
     {
         var builds = await _context.VehiculoBuilds
+            .AsNoTracking()
             .Include(b => b.Accesorios)
             .Include(b => b.Vehiculo)
             .Select(b => new {
@@ -260,7 +263,14 @@ public class VehiculosController : ControllerBase
                 b.Nombre,
                 b.VehiculoId,
                 Vehiculo = b.Vehiculo != null ? $"{b.Vehiculo.Marca} {b.Vehiculo.Modelo}" : "Desconocido",
-                CantidadAccesorios = b.Accesorios.Count
+                CantidadAccesorios = b.Accesorios.Count,
+                Accesorios = b.Accesorios.Select(a => new {
+                    a.Id,
+                    a.Nombre,
+                    a.Categoria,
+                    a.Descripcion,
+                    a.Precio
+                }).ToList()
             })
             .ToListAsync();
 
@@ -271,6 +281,7 @@ public class VehiculosController : ControllerBase
     public async Task<IActionResult> GetBuilds(int id)
     {
         var builds = await _context.VehiculoBuilds
+            .AsNoTracking()
             .Include(b => b.Accesorios)
             .Include(b => b.Vehiculo)
             .Where(b => b.VehiculoId == id)
@@ -279,7 +290,14 @@ public class VehiculosController : ControllerBase
                 b.Nombre,
                 b.VehiculoId,
                 Vehiculo = b.Vehiculo != null ? $"{b.Vehiculo.Marca} {b.Vehiculo.Modelo}" : "Desconocido",
-                CantidadAccesorios = b.Accesorios.Count
+                CantidadAccesorios = b.Accesorios.Count,
+                Accesorios = b.Accesorios.Select(a => new {
+                    a.Id,
+                    a.Nombre,
+                    a.Categoria,
+                    a.Descripcion,
+                    a.Precio
+                }).ToList()
             })
             .ToListAsync();
 

@@ -13,6 +13,25 @@ export interface Accesorio {
   Categoria: string;
 }
 
+export interface ReglaCompatibilidadDto {
+  Id: number;
+  ComponenteOrigenId: number;
+  ComponenteOrigenNombre: string;
+  ComponenteDestinoId: number;
+  ComponenteDestinoNombre: string;
+  Tipo: 'Requisito' | 'Incompatibilidad' | string;
+}
+
+export interface SystemUserDto {
+  Id: number;
+  Username: string;
+  Email: string;
+  Role: string;
+  VehiclesCount: number;
+  ActionsCount: number;
+  Status: string;
+}
+
 export interface ComponenteDesgaste {
   Id: number;
   Nombre: string;
@@ -23,8 +42,10 @@ export interface ComponenteDesgaste {
 
 export interface Trayecto {
   Id: number;
+  VehiculoId?: number;
   Kilometros: number;
-  TipoSuelo: number;
+  Suelo?: number;
+  TipoSuelo?: number;
   Fecha: string;
 }
 
@@ -108,4 +129,3 @@ export interface VinDecodeResult {
   VehicleType: string;
   Trim: string;
 }
-
